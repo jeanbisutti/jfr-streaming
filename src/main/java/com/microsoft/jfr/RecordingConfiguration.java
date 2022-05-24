@@ -1,13 +1,12 @@
 package com.microsoft.jfr;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.HashMap;
-import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * A flight recorder configuration controls the amount of data that is collected.
@@ -87,12 +86,21 @@ public abstract class RecordingConfiguration<C> {
     public static class MapConfiguration extends RecordingConfiguration<Map<String, String>> {
 
         /**
-         * Sets a cinfiguration from a Map
-         * @param configuration A map defining the JFR events to regiter.
+         * Sets a configuration from a Map
+         * @param configuration A map defining the JFR events to register.
          *                      For example: {jdk.ObjectAllocationInNewTLAB#enabled=true, jdk.ObjectAllocationOutsideTLAB#enabled=true}
          */
         public MapConfiguration(Map<String, String> configuration) {
             super(configuration);
+        }
+
+        /**
+         * Sets a configuration from a Map supplier
+         * @param eventConfigSupplier A map supplier defining the JFR events to register.
+         *
+         */
+        public MapConfiguration(Supplier<Map<String, String>> eventConfigSupplier) {
+            super(eventConfigSupplier.get());
         }
 
         @Override

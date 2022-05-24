@@ -12,6 +12,7 @@ import java.time.Instant;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
@@ -41,6 +42,29 @@ public class ProgrammaticJfrEventConfigTest {
         executeRecording(recordingConfiguration);
 
     }
+
+    @Test
+    public void programmaticEventConfigWithEventSupplier() {
+
+        Supplier<Map<String, String>> allocationEvents = () -> {
+            Map<String, String> recordingConfigAsMap = new HashMap<>();
+
+            if (JVM.INSTANCE.version.isLessThanTo16()) {
+                recordingConfigAsMap.put("jdk.ObjectAllocationInNewTLAB#enabled", "true");
+                recordingConfigAsMap.put("jdk.ObjectAllocationOutsideTLAB#enabled", "true");
+            } else {
+                recordingConfigAsMap.put("jdk.ObjectAllocationSample#enabled", "true");
+            }
+
+            return recordingConfigAsMap;
+        };
+
+        RecordingConfiguration recordingConfiguration = new RecordingConfiguration.MapConfiguration(allocationEvents);
+
+        executeRecording(recordingConfiguration);
+
+    }
+
     private void executeRecording(RecordingConfiguration recordingConfiguration) {
         Path dumpFile = null;
         try {
