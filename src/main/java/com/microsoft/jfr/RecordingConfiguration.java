@@ -1,8 +1,11 @@
 package com.microsoft.jfr;
 
+import com.microsoft.jfr.event.JfrEventConfig;
+
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -110,6 +113,27 @@ public abstract class RecordingConfiguration<C> {
 
     }
 
+
+    public static class EventConfiguration extends RecordingConfiguration<Map<String, String>>  {
+        public EventConfiguration(Supplier<Collection<JfrEventConfig>> jfrEventsSupplier) {
+            super(toMap(jfrEventsSupplier));
+        }
+        private static Map<String, String> toMap(Supplier<Collection<JfrEventConfig>> jfrEventsSupplier) {
+            Collection<JfrEventConfig> jfrEventConfigs = jfrEventsSupplier.get();
+            Map<String, String> collect = jfrEventConfigs.stream()
+                    .collect(Collectors.toMap(event -> event.enableConfig()
+                                            , event -> event.enableConfigValue()
+                            )
+                    );
+            System.out.println("collect = " + collect);
+            return collect;
+        }
+
+        @Override
+        public String getMbeanSetterFunction() {
+            return "setRecordingSettings";
+        }
+    }
 
     /**
      * Get the setter function on the FlightRecorder mbean that receives this configuration type

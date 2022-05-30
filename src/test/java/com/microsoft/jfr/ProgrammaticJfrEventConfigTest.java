@@ -1,5 +1,10 @@
 package com.microsoft.jfr;
 
+import com.microsoft.jfr.event.JfrEventConfig;
+//import com.microsoft.jfr.event.JfrEvents;
+import com.microsoft.jfr.event.ObjectAllocationInNewTLAB;
+import com.microsoft.jfr.event.ObjectAllocationOutsideTLAB;
+import com.microsoft.jfr.event.ObjectAllocationSample;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
@@ -10,8 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static org.testng.Assert.assertTrue;
@@ -60,6 +64,26 @@ public class ProgrammaticJfrEventConfigTest {
         };
 
         RecordingConfiguration recordingConfiguration = new RecordingConfiguration.MapConfiguration(allocationEvents);
+
+        executeRecording(recordingConfiguration);
+
+    }
+
+    @Test
+    public void programmaticEventConfigWithObjectEvents() {
+
+        Supplier<Collection<JfrEventConfig>> jfrEvents = () -> {
+
+            if (JVM.INSTANCE.version.isLessThanTo16()) {
+                return Arrays.asList(ObjectAllocationInNewTLAB.enabled()
+                                   , ObjectAllocationOutsideTLAB.enabled());
+            }
+
+            return Collections.singletonList(ObjectAllocationSample.enabled());
+
+        };
+
+        RecordingConfiguration recordingConfiguration = new RecordingConfiguration.EventConfiguration(jfrEvents);
 
         executeRecording(recordingConfiguration);
 
