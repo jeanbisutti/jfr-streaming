@@ -1,7 +1,6 @@
 package com.microsoft.jfr;
 
 import com.microsoft.jfr.event.JfrEventConfig;
-//import com.microsoft.jfr.event.JfrEvents;
 import com.microsoft.jfr.event.ObjectAllocationInNewTLAB;
 import com.microsoft.jfr.event.ObjectAllocationOutsideTLAB;
 import com.microsoft.jfr.event.ObjectAllocationSample;
@@ -14,7 +13,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -75,7 +73,7 @@ public class ProgrammaticJfrEventConfigTest {
         Supplier<Collection<JfrEventConfig>> jfrEvents = () -> {
 
             if (JVM.INSTANCE.version.isLessThanTo16()) {
-                return Arrays.asList(ObjectAllocationInNewTLAB.enabled()
+                return Arrays.asList(ObjectAllocationInNewTLAB.enabled(true).stackTrace(true)
                                    , ObjectAllocationOutsideTLAB.enabled());
             }
 

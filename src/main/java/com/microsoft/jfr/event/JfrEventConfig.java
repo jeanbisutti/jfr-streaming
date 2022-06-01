@@ -1,6 +1,8 @@
 package com.microsoft.jfr.event;
 
-public class JfrEventConfig {
+import java.util.Map;
+
+public abstract class JfrEventConfig {
     private String eventName;
 
     protected boolean enabled;
@@ -24,5 +26,7 @@ public class JfrEventConfig {
     public boolean isEnabled() {
         return enabled;
     }
+
+    public abstract Map<String, String> toMapSettings();
 
 }

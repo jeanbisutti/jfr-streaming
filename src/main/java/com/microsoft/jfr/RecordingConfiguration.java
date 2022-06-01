@@ -125,7 +125,6 @@ public abstract class RecordingConfiguration<C> {
                                             , event -> event.enableConfigValue()
                             )
                     );
-            System.out.println("collect = " + collect);
             return collect;
         }
 

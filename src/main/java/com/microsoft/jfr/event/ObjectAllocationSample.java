@@ -1,5 +1,7 @@
 package com.microsoft.jfr.event;
 
+import java.util.Map;
+
 public class ObjectAllocationSample extends JfrEventConfig {
 
     public ObjectAllocationSample() {
@@ -10,6 +12,11 @@ public class ObjectAllocationSample extends JfrEventConfig {
         ObjectAllocationSample objectAllocationSample = new ObjectAllocationSample();
         objectAllocationSample.enabled = true;
         return objectAllocationSample;
+    }
+
+    @Override
+    public Map<String, String> toMapSettings() {
+        return null;
     }
 
 }
