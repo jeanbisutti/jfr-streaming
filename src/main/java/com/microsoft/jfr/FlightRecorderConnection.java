@@ -113,13 +113,27 @@ public class FlightRecorderConnection {
             String[] argTypes = new String[]{};
             final long id = (long) mBeanServerConnection.invoke(objectName, "newRecording", args, argTypes);
 
-            if (recordingConfiguration != null) {
-                String configuration = recordingConfiguration.getConfiguration();
-                if (configuration != null && configuration.trim().length() > 0) {
-                    args = new Object[]{id, configuration};
-                    argTypes = new String[]{long.class.getName(), String.class.getName()};
-                    mBeanServerConnection.invoke(objectName, recordingConfiguration.getMbeanSetterFunction(), args, argTypes);
+            if (recordingConfiguration != null && recordingConfiguration.getConfiguration() != null) {
+
+                String mbeanSetterFunction = recordingConfiguration.getMbeanSetterFunction();
+
+                if ("setRecordingSettings".equals(mbeanSetterFunction)) {
+                    Map<String, String> configuration = (Map) recordingConfiguration.getConfiguration();
+                    if (!configuration.isEmpty()) {
+                        TabularData configAsTabular = makeOpenData(configuration);
+                        args = new Object[]{id, configAsTabular};
+                        argTypes = new String[]{long.class.getName(), TabularData.class.getName()};
+                        mBeanServerConnection.invoke(objectName, mbeanSetterFunction, args, argTypes);
+                    }
+                } else {
+                    String configuration = (String) recordingConfiguration.getConfiguration();
+                    if (configuration.trim().length() > 0) {
+                        args = new Object[]{id, configuration};
+                        argTypes = new String[]{long.class.getName(), String.class.getName()};
+                        mBeanServerConnection.invoke(objectName, mbeanSetterFunction, args, argTypes);
+                    }
                 }
+
             }
 
             if (recordingOptions != null) {

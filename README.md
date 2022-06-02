@@ -1,95 +1,129 @@
 # Microsoft JFR Streaming
 
-The `jfr-streaming` project provides a core library for configuring, starting, stopping, 
-and reading [Java Flight Recording](https://docs.oracle.com/javacomponents/jmc-5-4/jfr-runtime-guide/about.htm#JFRUH170)
-files from a JVM. The code does not depend on the `jdk.jfr`
-module and will compile and run against JDK 8 or higher. It uses a connection to an MBean
-server, which can be the platform MBean server, or a remote MBean server connected by
-means of JMX. 
 
-The goal of this project is a low-level library. Solving higher level problems, such
-as managing JFR across multiple JVMs, is not a goal of this project. 
+## Read JFR recording from memory (not from a .jfr file)
+There are several types of API to profile with the JDK Flight Recording (JFR).
 
-## Getting Started
+1) Basic API from JDK 8 (non-streaming API) => JFR events can be saved in a _.fr_ file or an ```InputStream```
+2) The [RecordingStream](https://docs.oracle.com/en/java/javase/17/docs/api/jdk.jfr/jdk/jfr/consumer/RecordingStream.html) from JDK 14 
+=>  stream that produces events from the current JVM, [JVM Blog paper: A Closer Look at JFR Streaming](http://hirt.se/blog/?p=1239)
+3) The [RemoteRecordingStream](https://docs.oracle.com/en/java/javase/17/docs/api/jdk.management.jfr/jdk/management/jfr/RemoteRecordingStream.html) from JDK 16
+=>   stream that produces events and can serialize them over the network
 
-### Maven Coordinates
+Thereafter, we give information about the "basic" API, used by _Microsoft JFR Streaming_. We also explain how to upload the JFR profiling data straight from memory (without using a _.jfr_ file). 
 
-[![Maven Central](https://img.shields.io/maven-central/v/com.microsoft.jfr/jfr-streaming.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:%22com.microsoft.jfr%22%20AND%20a:%22jfr-streaming%22)
+### The "basic" API
 
-```xml
-<dependency>
-  <groupId>com.microsoft.jfr</groupId>
-  <artifactId>jfr-streaming</artifactId>
-  <version>1.2.0</version>
-</dependency>
-```
+The "basic" API can be controlled with:
+* [FlightRecorderMXBean](https://docs.oracle.com/javase/9/docs/api/jdk/management/jfr/FlightRecorderMXBean.html) or [jdk.jfr.Recording](https://docs.oracle.com/en/java/javase/12/docs/api/jdk.jfr/jdk/jfr/Recording.html) class => ```FlightRecorderConnection``` in _Microsoft JFR Streaming_
+  * OpenJDK JDK 8 with a version of at least u262/u272 (following vendors)
+  * From OpenJDK JDK 11
+  * Oracle JDK 9
+  * Oracle JDK 10
+* DiagnosticCommandMBean => ```FlightRecorderDiagnosticCommandConnection``` in _Microsoft JFR Streaming_
+  * Oracle JDK 8 (removed from Oracle JDK 9)
 
-### Example
+The recording result can be saved in a file or in an ```InputStream```.
 
-This example illustrates some of the API. 
+The JDK [RecordingFile](https://docs.oracle.com/en/java/javase/11/docs/api/jdk.jfr/jdk/jfr/consumer/RecordingFile.html) class allows reading the JFR event contained in a _.jfr_ file (_the ```RecordingFile``` class is available in the same JDK versions as the ```Recording``` class, see above_).
 
-```java   
-///usr/bin/env jbang "$0" "$@" ; exit $?
-//DEPS com.microsoft.jfr:jfr-streaming:1.2.0
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.concurrent.TimeUnit;
-import java.lang.management.ManagementFactory;
-import javax.management.*;
-import com.microsoft.jfr.*;
+There is apparently no API in the JDK to read JFR events from an ```InputStream```, but it is possible to use the [org.openjdk.jmc.flightrecorder](https://mvnrepository.com/artifact/org.openjdk.jmc/flightrecorder) library:
 
-public class Sample {
-    public static void main(String[] args) {
-        MBeanServerConnection mBeanServer = ManagementFactory.getPlatformMBeanServer();
-        try {
-            FlightRecorderConnection flightRecorderConnection = FlightRecorderConnection.connect(mBeanServer);
-            RecordingOptions recordingOptions = new RecordingOptions.Builder().disk("true").build();
-            RecordingConfiguration recordingConfiguration = RecordingConfiguration.PROFILE_CONFIGURATION;
-
-            try (Recording recording = flightRecorderConnection.newRecording(recordingOptions, recordingConfiguration)) {
-                recording.start();
-                TimeUnit.SECONDS.sleep(10);
-                recording.stop();
-
-                recording.dump(Paths.get(System.getProperty("user.dir"), "recording.jfr").toString());
-                System.out.println("JFR recording ready: recording.jfr");
-            }
-        } catch (InstanceNotFoundException | IOException | JfrStreamingException | InterruptedException e) {
-            e.printStackTrace();
+```java
+       ...
+       InputStream jfrEventsInputStream = recording.getStream(null, null);
+       ...
+       IItemCollection iItemIterables = JfrLoaderToolkit.loadEvents(jfrEventsInputStream);
+        for (IItemIterable iItemIterable : iItemIterables) {
+        ...
         }
-    }
-}
 ```
 
-You can run the code above with [jbang](https://www.jbang.dev):
+The full example is given [here](src/test/java/com/microsoft/jfr/MemoryRecordingTest.java).
 
-1. Install jbang.
-1. Save the code above in a local `Sample.java` file, or [download directly](https://raw.githubusercontent.com/microsoft/jfr-streaming/main/samples/jbang/Sample.java).
-1. Run the code: `jbang Sample.java`
+## Programmatically configure JFR events
 
-### Note on Oracle JDK 8
+### Why
+Easily be able to dynamically configure JFR events according to JVM characteristics, such as the JVM version.
 
-For Oracle JDK 8, it may be necessary to unlock the Java Flight Recorder 
-commercial feature with the JVM arg `-XX:+UnlockCommercialFeatures -XX:+FlightRecorder`.
-Starting with JDK 8u262, Java Flight Recorder is available for all OpenJDK distributions.
+### A use case
 
-## Build and Test
+[In JDK 16, a low overhead allocation event was introduced](https://bugs.openjdk.java.net/browse/JDK-8257602):
+```xml
+    <event name="jdk.ObjectAllocationSample">
+      <setting name="enabled">true</setting>
+      <setting name="throttle">300/s</setting>
+      <setting name="stackTrace">true</setting>
+    </event>
+```
 
-The build is vanilla Maven.
+The ```jdk.ObjectAllocationSample``` can be used instead of the ```jdk.ObjectAllocationInNewTLAB``` and ```"jdk.ObjectAllocationOutsideTLAB"``` events.
 
-<br/>`mvn clean` - remove build artifacts
-<br/>`mvn compile` - compile the source code
-<br/>`mvn test` - run unit tests (this project uses TestNG)
-<br/>`mvn package` - build the .jar file
 
-## Contributing
+From  [_Improved JFR allocation profiling in JDK 16_](https://withent.blogspot.com/2021/01/improved-jfr-allocation-profiling-in.html)  blog post: 
+* "This is an incremental improvement on top of the TLAB based allocation profiling. It is using the same data source (TLAB filled up, outside of TLAB allocation) but is applying an adaptive throttling mechanism to guarantee the maximum number of samples per recording (or time unit, more generally speaking)."
+* "let's ponder the fact that the event rate emission control (throttling) is not TLAB event specific and can be used for other event types as well if there is such demand."
+=> **Potential new low-overhead JFR events in future JVM version**
 
-This project welcomes contributions and suggestions. Most contributions require you to agree to a Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us the rights to use your contribution. For details, view [Microsoft's CLA](https://cla.microsoft.com).
+### A solution
 
-When you submit a pull request, a CLA-bot will automatically determine whether you need to provide a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the instructions provided by the bot. You will only need to do this once across all repositories using our CLA.
+We have added the ability to configure JFR events programmatically to _Microsoft JFR Streaming_ in the case of the use of ```FlightRecorderConnection``` (it would be possible to add the same feature to ```FlightRecorderDiagnosticCommandConnection```).
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+We give below an example available in the [ProgrammaticJfrEventConfigTest](src/test/java/com/microsoft/jfr/ProgrammaticJfrEventConfigTest.java) class.
+```java
+    @Test
+    public void programmaticEventConfigWithMap() {
 
-## License
+        Map<String, String> recordingConfigAsMap = new HashMap<>();
+        recordingConfigAsMap.put("jdk.ObjectAllocationInNewTLAB#enabled", "true");
+        recordingConfigAsMap.put("jdk.ObjectAllocationOutsideTLAB#enabled", "true");
 
-Microsoft JFR Streaming Library is licensed under the [MIT](https://github.com/microsoft/jfr-streaming/blob/master/LICENSE) license.
+        RecordingConfiguration recordingConfiguration = new RecordingConfiguration.MapConfiguration(recordingConfigAsMap);
+
+        executeRecording(recordingConfiguration);
+
+    }
+```
+
+With this feature, it becomes possible to easily configure specific allocation events according to the JVM version ([ProgrammaticJfrEventConfigTest](src/test/java/com/microsoft/jfr/ProgrammaticJfrEventConfigTest.java) class):
+
+```java
+    @Test
+    public void selectJfrEventAccordingToJvmVersion() {
+
+        Supplier<Map<String, String>> allocationEvents = () -> {
+            Map<String, String> recordingConfigAsMap = new HashMap<>();
+
+            if (JVM.INSTANCE.version.isLessThanTo16()) {
+                recordingConfigAsMap.put("jdk.ObjectAllocationInNewTLAB#enabled", "true");
+                recordingConfigAsMap.put("jdk.ObjectAllocationOutsideTLAB#enabled", "true");
+            } else {
+                recordingConfigAsMap.put("jdk.ObjectAllocationSample#enabled", "true");
+            }
+
+            return recordingConfigAsMap;
+        };
+
+        RecordingConfiguration recordingConfiguration = new RecordingConfiguration.MapConfiguration(allocationEvents);
+
+        executeRecording(recordingConfiguration);
+
+    }
+``` 
+
+_We have also created a feature to transform an event configuration defined with a _.jcf_ file into a programmatic configuration._ The entry point of this feature is [here](src\main\java\com\microsoft\jfr\generation\JfcToJava.java).
+
+An example of the use of a generated programmatic configuration is given in the [ProgrammaticJfrEventConfigTest](src/test/java/com/microsoft/jfr/ProgrammaticJfrEventConfigTest.java) class:
+```java
+    @Test
+    public void useGeneratedProgrammaticProfile() {
+
+        // The MemoryProfile class was generated from the src/test/resources/reduced-memory-profile.jfc file with the help of the JfcToJava class
+        Supplier<Map<String, String>> memoryProfile = MemoryProfile.MAP_SUPPLIER;
+        
+        RecordingConfiguration recordingConfiguration = new RecordingConfiguration.MapConfiguration(memoryProfile);
+        
+        executeRecording(recordingConfiguration);
+
+    }
+```
