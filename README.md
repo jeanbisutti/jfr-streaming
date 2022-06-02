@@ -111,7 +111,7 @@ With this feature, it becomes possible to easily configure specific allocation e
     }
 ``` 
 
-_We have also created a feature to transform an event configuration defined with a _.jcf_ file into a programmatic configuration._ The entry point of this feature is [here](src\main\java\com\microsoft\jfr\generation\JfcToJava.java).
+_We have also created a feature to transform an event configuration defined with a _.jcf_ file into a programmatic configuration._ The entry point of this feature is [here](src/main/java/com/microsoft/jfr/generation/JfcToJava.java).
 
 An example of the use of a generated programmatic configuration is given in the [ProgrammaticJfrEventConfigTest](src/test/java/com/microsoft/jfr/ProgrammaticJfrEventConfigTest.java) class:
 ```java
